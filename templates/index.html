@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LXC-Coin</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+    --bg:            #f0f4f8;     --bg-card:       #ffffff;
+    --bg-hover:      #f8fafc;     --bg-accent:     #eef6ff;
+    --border:        #e2e8f0;     --border-focus:  #60a5fa;
+    --text:          #1e293b;     --text-secondary:#64748b;
+    --text-muted:    #94a3b8;
+    --accent:        #0891b2;     --accent-light:  #e0f7fa;
+    --blue:          #2563eb;     --blue-light:    #eff6ff;
+    --red:           #dc2626;     --orange:        #d97706;
+    --purple:        #7c3aed;     --green:         #059669;
+    --radius:        12px;        --radius-sm:     8px;
+    --shadow:        0 1px 3px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-lg:     0 4px 24px rgba(0,0,0,0.08);
+    --transition:    0.22s cubic-bezier(0.4,0,0.2,1);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; height: 100vh; overflow: hidden;
+}
+
+/* ══════ Sidebar ══════ */
+.sidebar {
+    width: 380px; min-width: 380px; background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto; z-index: 10; padding: 0;
+}
+.sidebar-header {
+    padding: 22px 24px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(180deg, #fff 0%, #fafbfc 100%);
+    position: sticky; top: 0; z-index: 5;
+}
+.logo-icon { width:40px; height:40px; background:linear-gradient(135deg,#0891b2 0%,#2563eb 100%); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; flex-shrink:0; box-shadow:0 2px 12px rgba(8,145,178,.25); }
+.logo-text h3 { font-size:16px; font-weight:700; color:var(--text); letter-spacing:-0.3px; }
+.logo-text span { font-size:10px; color:var(--accent); font-weight:600; letter-spacing:0.5px; text-transform:uppercase; }
+
+/* Stats Mini */
+.stats-mini { display:flex; border-bottom:1px solid var(--border); background:var(--bg-accent); }
+.stat-mini { flex:1; padding:12px 0; text-align:center; border-right:1px solid var(--border); }
+.stat-mini:last-child { border-right:none; }
+.stat-mini .sv { font-size:18px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+.stat-mini .sl { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-top:2px; font-weight:600; }
+.sv.cyan { color:var(--accent); } .sv.blue { color:var(--blue); } .sv.green { color:var(--green); } .sv.orange { color:var(--orange); }
+
+/* ══════ Section blocks ══════ */
+.sec { border-bottom:1px solid var(--border); }
+.sec-hdr {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 24px; cursor:pointer; user-select:none;
+    transition:var(--transition); font-weight:600; font-size:13px; color:var(--text);
+}
+.sec-hdr:hover { background:var(--bg-hover); }
+.sec-hdr .arr { font-size:11px; transition:transform 0.3s; color:var(--text-muted); }
+.sec-hdr.open .arr { transform:rotate(180deg); }
+.sec-body { max-height:0; overflow:hidden; transition:max-height 0.35s ease; }
+.sec-inner { padding:0 24px 16px; }
+
+/* Cards */
+.card { background:#fafbfc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; margin-bottom:10px; }
+
+input[type="text"], input[type="number"], input[type="password"] {
+    width:100%; padding:10px 12px; margin-bottom:8px;
+    background:#fff; border:1px solid var(--border);
+    border-radius:var(--radius-sm); color:var(--text);
+    font-family:'JetBrains Mono',monospace; font-size:12px; outline:none; transition:var(--transition);
+}
+input:focus { border-color:var(--border-focus); box-shadow:0 0 0 3px rgba(96,165,250,0.15); }
+input::placeholder { color:var(--text-muted); font-size:11px; }
+
+button {
+    width:100%; padding:10px 14px; border:none; border-radius:var(--radius-sm);
+    cursor:pointer; font-family:'Inter',sans-serif; font-weight:600;
+    font-size:12px; letter-spacing:0.2px; transition:var(--transition);
+}
+button:active { transform:scale(0.97); }
+.btn-blue { background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%); color:#fff; box-shadow:0 2px 8px rgba(37,99,235,0.2); }
+.btn-blue:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(37,99,235,0.3); }
+.btn-purple { background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%); color:#fff; box-shadow:0 2px 8px rgba(124,58,237,0.2); }
+.btn-purple:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(124,58,237,0.3); }
+.btn-warm { background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%); color:#fff; box-shadow:0 2px 8px rgba(217,119,6,0.2); }
+.btn-warm:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(217,119,6,0.3); }
+.btn-mine {
+    background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);
+    color:#fff; box-shadow:0 2px 12px rgba(220,38,38,0.2);
+    animation:mine-glow 2s ease-in-out infinite;
+}
+@keyframes mine-glow { 0%,100%{box-shadow:0 2px 12px rgba(220,38,38,0.2);} 50%{box-shadow:0 4px 24px rgba(220,38,38,0.35);} }
+.btn-mine:hover { transform:translateY(-1px); }
+button:disabled { background:#cbd5e1!important; color:#94a3b8!important; cursor:not-allowed; box-shadow:none!important; transform:none!important; animation:none!important; }
+
+.btn-sm { width:auto; padding:8px 14px; font-size:11px; background:#f1f5f9; border:1px solid var(--border); color:var(--text-secondary); border-radius:7px; }
+.btn-sm:hover { background:#e2e8f0; }
+
+.mini-addr {
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--accent);
+    padding:10px 12px; border-radius:var(--radius-sm); background:var(--accent-light);
+    word-break:break-all; cursor:pointer; border:1px solid transparent; transition:var(--transition);
+}
+.mini-addr:hover { border-color:var(--accent); }
+
+.prk { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--red); background:#fef2f2; padding:10px; border-radius:var(--radius-sm); word-break:break-all; margin-top:6px; cursor:pointer; }
+
+.peer-tag {
+    display:inline-flex; align-items:center; gap:4px; padding:5px 10px;
+    background:var(--blue-light); color:var(--blue); border-radius:14px;
+    font-size:10px; font-weight:600; cursor:pointer; margin:3px 4px 3px 0;
+    transition:var(--transition); font-family:'JetBrains Mono',monospace;
+}
+.peer-tag:hover { background:#dbeafe; transform:translateY(-1px); }
+.peer-tag::before { content:'🖥️'; font-size:10px; }
+
+.wl { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; font-weight:700; }
+.key-box { display:none; margin-top:10px; padding:12px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:var(--radius-sm); }
+
+@keyframes spin { 100%{transform:rotate(360deg);} }
+.spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; margin-right:6px; vertical-align:middle; }
+
+/* ══════ Modal ══════ */
+.modal-overlay {
+    position:fixed; inset:0; background:rgba(15,23,42,0.7); z-index:1000;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity 0.3s;
+    backdrop-filter:blur(6px);
+}
+.modal-overlay.active { opacity:1; pointer-events:auto; }
+
+.modal-box {
+    background:#fff; border-radius:var(--radius); width:520px; max-width:95vw;
+    box-shadow:0 20px 60px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06);
+    border-top: 4px solid var(--blue); overflow:hidden;
+    transform:translateY(20px); transition:transform 0.3s;
+}
+.modal-overlay.active .modal-box { transform:translateY(0); }
+
+.modal-hdr {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 28px; border-bottom:1px solid var(--border);
+    background:#fafbfc;
+}
+.modal-hdr h3 { font-size:16px; font-weight:700; color:var(--text); }
+.modal-close {
+    width:32px; height:32px; border:none; background:none;
+    font-size:20px; color:var(--text-muted); cursor:pointer;
+    border-radius:8px; display:flex; align-items:center; justify-content:center;
+}
+.modal-close:hover { background:#e2e8f0; color:var(--text); }
+
+.modal-body { padding:24px 28px; max-height:65vh; overflow-y:auto; }
+
+/* ══════ Main Content ══════ */
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; background:#f8fafc; }
+.content-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; border-bottom:1px solid var(--border); background:#fff;
+}
+.content-header h2 { font-size:15px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:8px; }
+.chain-area { flex:1; overflow-y:auto; padding:28px; display:flex; flex-direction:column; align-items:center; scroll-behavior:smooth; }
+
+/* ══════ Block ══════ */
+.block {
+    background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+    width:96%; max-width:900px; flex-shrink:0; overflow:hidden;
+    margin-bottom:32px; position:relative; transition:var(--transition); box-shadow:var(--shadow);
+}
+.block:hover { border-color:#cbd5e1; box-shadow:var(--shadow-lg); transform:translateY(-2px); }
+.block::after { content:''; position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); width:2px; height:20px; background:linear-gradient(180deg,var(--accent) 0%,transparent 100%); }
+.block:last-child::after { display:none; }
+.block-top { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; background:#f8fafc; border-bottom:1px solid var(--border); }
+.block-index { font-size:14px; font-weight:700; color:var(--accent); font-family:'JetBrains Mono',monospace; }
+.block-time { font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+.block-body { padding:18px 24px; }
+.hash-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; font-family:'JetBrains Mono',monospace; }
+.hash-label { color:var(--text-muted); white-space:nowrap; font-weight:500; }
+.hash-value { color:var(--text-secondary); word-break:break-all; font-size:11.5px; }
+.hash-click { color:var(--accent); cursor:pointer; transition:var(--transition); word-break:break-all; font-size:11.5px; }
+.hash-click:hover { color:#0e7490; }
+.tx-section { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+.tx-section-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; cursor:pointer; user-select:none; }
+.tx-section-hdr h4 { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); font-weight:600; }
+.tx-section-hdr .arr { font-size:11px; color:var(--text-muted); transition:transform 0.3s; }
+.tx-section-hdr.collapsed .arr { transform:rotate(-90deg); }
+.tx-list { display:flex; flex-direction:column; gap:6px; }
+.tx-list.hidden { display:none; }
+.tx-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#fafcfd; border:1px solid var(--border); font-size:12px; transition:var(--transition); flex-wrap:wrap; }
+.tx-row:hover { background:#f1f5f9; border-color:#cbd5e1; }
+.tx-tag { padding:3px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.5px; white-space:nowrap; }
+.tx-tag.coin { background:#fffbeb; color:var(--orange); }
+.tx-tag.send { background:#fef2f2; color:var(--red); }
+.tx-arr { color:var(--text-muted); font-size:12px; margin:0 1px; }
+.tx-addr { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--blue); cursor:pointer; transition:var(--transition); }
+.tx-addr:hover { color:#1d4ed8; text-decoration:underline; }
+.tx-amt { font-weight:700; font-size:13px; margin-left:auto; white-space:nowrap; font-family:'JetBrains Mono',monospace; }
+.tx-amt.in { color:var(--green); } .tx-amt.out { color:var(--red); }
+.tx-fee { font-size:9px; color:var(--orange); background:#fff7ed; padding:2px 5px; border-radius:3px; margin-left:2px; }
+.tx-txid { display:block; width:100%; margin-top:3px; font-size:10px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; cursor:pointer; }
+.tx-txid:hover { color:var(--accent); }
+.empty-tx { text-align:center; color:var(--text-muted); padding:24px; font-size:11px; }
+
+/* Explorer */
+.explore-card { background:#fff; border:2px solid var(--blue); border-radius:var(--radius); width:92%; max-width:820px; flex-shrink:0; padding:28px; box-shadow:0 4px 32px rgba(37,99,235,0.08); }
+.explore-card h3 { font-size:16px; color:var(--blue); margin-bottom:18px; display:flex; align-items:center; gap:8px; }
+.balance-hero { font-size:42px; font-weight:800; color:var(--accent); font-family:'JetBrains Mono',monospace; margin:16px 0; letter-spacing:-1px; }
+.tx-detail-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.tx-detail-row b { color:var(--text-muted); font-weight:500; }
+.tx-detail-row span { color:var(--text); font-family:'JetBrains Mono',monospace; font-size:11px; word-break:break-all; }
+
+/* Toast */
+#toast { position:fixed; top:24px; right:24px; max-width:440px; background:#fff; color:var(--text); padding:16px 22px; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.12); border:1px solid var(--border); border-left:4px solid var(--accent); transform:translateX(150%); transition:transform 0.35s cubic-bezier(0.4,0,0.2,1); z-index:9999; font-weight:500; font-size:12px; }
+#toast.error { border-left-color:var(--red); } #toast.success { border-left-color:var(--accent); } #toast.warning { border-left-color:var(--orange); }
+
+/* ══════ Timeline ══════ */
+.timeline {
+    position:fixed; right:0; top:0; bottom:0;
+    width:28px; z-index:50; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:120px 0;
+    transition: width 0.25s ease, background 0.25s ease;
+    background:transparent;
+}
+.timeline:hover { width:68px; background:rgba(255,255,255,0.88); box-shadow:-2px 0 12px rgba(0,0,0,0.06); }
+.timeline-line {
+    position:absolute; left:50%; top:0; bottom:0;
+    width:2px; background:var(--border); transform:translateX(-50%);
+    transition: background 0.25s;
+}
+.timeline:hover .timeline-line { background:#94a3b8; }
+.timeline-dots {
+    position:relative; z-index:2;
+    display:flex; flex-direction:column; align-items:center;
+    gap:0; max-height:100%; overflow:visible;
+}
+.timeline-dot {
+    width:12px; height:12px; border-radius:50%;
+    background:#64748b; cursor:pointer; flex-shrink:0;
+    transition: all 0.2s; position:relative;
+    margin:3px 0;
+}
+.timeline-dot:hover { background:var(--accent); transform:scale(1.8); box-shadow:0 0 8px rgba(8,145,178,0.4); }
+.timeline-dot.active { background:var(--accent); box-shadow:0 0 6px rgba(8,145,178,0.3); }
+.timeline-label {
+    position:absolute; right:32px; top:50%; transform:translateY(-50%);
+    background:#1e293b; color:#fff; padding:4px 10px; border-radius:5px;
+    font-size:11px; font-family:'JetBrains Mono',monospace; white-space:nowrap;
+    opacity:0; pointer-events:none; transition:opacity 0.2s;
+}
+.timeline:hover .timeline-label { opacity:1; }
+.timeline-hint {
+    position:absolute; right:36px; top:50%; transform:translateY(-50%) rotate(-90deg);
+    font-size:9px; color:var(--text-muted); white-space:nowrap;
+    pointer-events:none; opacity:0; transition:opacity 0.3s;
+    letter-spacing:1px;
+}
+.timeline:not(:hover) .timeline-hint { opacity:0.4; }
+.timeline:hover .timeline-hint { opacity:0; }
+
+::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; } ::-webkit-scrollbar-thumb:hover { background:#cbd5e1; }
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ═══════ Sidebar ═══════ -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <div class="logo-icon">⬡</div>
+        <div class="logo-text"><h3>LXC-Coin</h3><span>分布式加密账本</span></div>
+    </div>
+
+    <div class="stats-mini">
+        <div class="stat-mini"><span class="sv cyan" id="st-height">—</span><div class="sl">区块高度</div></div>
+        <div class="stat-mini"><span class="sv blue" id="st-txs">—</span><div class="sl">总交易</div></div>
+        <div class="stat-mini"><span class="sv green" id="st-pool">—</span><div class="sl">待打包</div></div>
+        <div class="stat-mini"><span class="sv orange" id="st-peers">—</span><div class="sl">节点</div></div>
+    </div>
+
+    <!-- ── 搜索 ── -->
+    <div class="sec">
+        <div class="sec-hdr open" onclick="toggleSec(this)"><span>🔍 全网搜索引擎</span><span class="arr">▼</span></div>
+        <div class="sec-body" style="max-height:300px;">
+            <div class="sec-inner">
+                <div class="card">
+                    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px;">支持 <b style="color:var(--accent);">地址</b> · <b style="color:var(--accent);">区块哈希</b> · <b style="color:var(--accent);">TxID</b></div>
+                    <input type="text" id="explore-query" placeholder="粘贴查询内容..." onkeydown="if(event.key==='Enter')exploreBlockchain()">
+                    <button class="btn-blue" onclick="exploreBlockchain()">一键全网追踪</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 钱包 ── -->
+    <div class="sec">
+        <div class="sec-hdr open" onclick="toggleSec(this)"><span>🛡️ 钱包管理</span><span class="arr">▼</span></div>
+        <div class="sec-body" style="max-height:400px;">
+            <div class="sec-inner">
+                <div class="card">
+                    <div class="wl">矿工公钥 (点击复制)</div>
+                    <div id="node-pub" class="mini-addr" onclick="copyText(this.innerText)">加载中...</div>
+                </div>
+                <div class="card">
+                    <button class="btn-purple" onclick="createWallet()">生成本地钱包</button>
+                    <div id="wallet-info" class="key-box">
+                        <div class="wl" style="color:var(--accent);">公钥 (点击复制)</div>
+                        <div id="new-pub" class="mini-addr" onclick="copyText(this.innerText)"></div>
+                        <div class="wl" style="color:var(--red);margin-top:8px;">私钥 (点击复制)</div>
+                        <div id="new-priv" class="prk" onclick="copyText(this.innerText)"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 转账按钮 → 弹窗 ── -->
+    <div class="sec">
+        <div class="sec-hdr" style="cursor:default;">
+            <span>💸 去中心化转账</span>
+        </div>
+        <div class="sec-inner" style="padding-top:4px;">
+            <button class="btn-warm" onclick="openTransferModal()">📤 打开发起转账</button>
+        </div>
+    </div>
+
+    <!-- ── 挖矿 ── -->
+    <div class="sec">
+        <div class="sec-hdr" style="cursor:default;">
+            <span>⛏️ 矿工控制台</span>
+        </div>
+        <div class="sec-inner" style="padding-top:4px;">
+            <button class="btn-mine" id="mine-btn" onclick="mineBlock(this)">⛏️ 开始挖矿打包</button>
+        </div>
+    </div>
+
+    <!-- ── 图表按钮 → 弹窗 ── -->
+    <div class="sec">
+        <div class="sec-hdr" style="cursor:default;">
+            <span>📊 数据可视化</span>
+        </div>
+        <div class="sec-inner" style="padding-top:4px;">
+            <button class="btn-blue" onclick="openChartModal()">📈 查看链上数据图表</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Transfer Modal ═══════ -->
+<div class="modal-overlay" id="transfer-modal">
+    <div class="modal-box">
+        <div class="modal-hdr">
+            <h3>💸 发起去中心化转账</h3>
+            <button class="modal-close" onclick="closeTransferModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="wl">接收方地址（点击下方已发现节点自动填入）</div>
+            <input type="text" id="tx-receiver" placeholder="接收方地址" style="margin-bottom:6px;">
+
+            <div class="card" style="margin-bottom:12px;">
+                <div class="wl" style="margin-bottom:6px;">🖥️ 已发现节点（点击即填入接收方）</div>
+                <div id="peer-list" style="font-size:10px;color:var(--text-muted);">加载中...</div>
+            </div>
+
+            <div class="wl">发送方地址（你的公钥）</div>
+            <input type="text" id="tx-sender" placeholder="发送方地址">
+
+            <input type="number" id="tx-amount" placeholder="转账金额 (如: 10.5)" min="0" step="0.00000001">
+            <input type="number" id="tx-fee" placeholder="💡 矿工手续费 (如: 0.1)" min="0" step="0.00000001">
+            <input type="password" id="tx-private-key" placeholder="🔑 输入发送方私钥进行本地签名">
+            <button class="btn-warm" onclick="newTransaction()">本地签名并广播至网络</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Chart Modal ═══════ -->
+<div class="modal-overlay" id="chart-modal">
+    <div class="modal-box" style="width:920px;">
+        <div class="modal-hdr">
+            <h3>📊 链上数据可视化仪表板</h3>
+            <button class="modal-close" onclick="closeChartModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex; gap:20px;">
+                <div style="flex:1; background:#fafcfd; border:1px solid var(--border); border-radius:var(--radius-sm); padding:20px;">
+                    <h4 style="font-size:12px;color:var(--text-muted);margin-bottom:12px;font-weight:600;">💎 矿工余额走势</h4>
+                    <div style="height:280px;"><canvas id="balanceChart"></canvas></div>
+                </div>
+                <div style="flex:1; background:#fafcfd; border:1px solid var(--border); border-radius:var(--radius-sm); padding:20px;">
+                    <h4 style="font-size:12px;color:var(--text-muted);margin-bottom:12px;font-weight:600;">🔥 累计手续费收益</h4>
+                    <div style="height:280px;"><canvas id="feeChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Main Content ═══════ -->
+<div class="main-content">
+    <div class="content-header" id="display-title">
+        <h2 id="main-title-text">⛓️ 实时区块链账本</h2>
+        <button class="btn-sm" onclick="exitExploreMode()" id="btn-back" style="display:none;">← 返回大盘</button>
+        <button class="btn-sm" onclick="loadChain()" id="btn-refresh">🔄 刷新</button>
+    </div>
+    <div class="chain-area" id="blockchain-container"></div>
+</div>
+
+<!-- ═══════ Timeline ═══════ -->
+<div class="timeline" id="block-timeline">
+    <div class="timeline-line"></div>
+    <div class="timeline-dots" id="timeline-dots"></div>
+    <div class="timeline-hint">区块导航</div>
+</div>
+
+<script>
+const EC=elliptic.ec; const ec=new EC('secp256k1');
+let currentChainLength=0, isExploreMode=false, balanceChart, feeChart;
+
+window.onload=()=>{
+    loadChain(); loadNodeWallet();
+    setInterval(()=>{ if(!isExploreMode) loadChain(true); },3000);
+    setInterval(()=>{ if(!isExploreMode) fetchStatsLoop(); },8000);
+    setTimeout(()=>{ if(!isExploreMode) fetchStatsLoop(); },2000);
+};
+
+function showMessage(msg, type){
+    const t=document.getElementById('toast');
+    t.innerText=msg; t.className=type||'';
+    t.style.transform='translateX(0)';
+    setTimeout(()=>t.style.transform='translateX(150%)',3000);
+}
+
+function copyText(text){
+    navigator.clipboard.writeText(text).then(()=>showMessage("📋 已复制到剪贴板","success")).catch(()=>{});
+}
+
+function toggleSec(el){
+    el.classList.toggle('open');
+    const body=el.nextElementSibling;
+    body.style.maxHeight=el.classList.contains('open')?body.scrollHeight+'px':'0px';
+}
+
+// ── 转账弹窗 ──
+function openTransferModal(){
+    document.getElementById('transfer-modal').classList.add('active');
+    loadPeers();
+}
+
+function closeTransferModal(){
+    document.getElementById('transfer-modal').classList.remove('active');
+}
+
+function openChartModal(){
+    document.getElementById('chart-modal').classList.add('active');
+    fetchStatsData().then(d => { if(d) updateCharts(d); });
+}
+
+function closeChartModal(){
+    document.getElementById('chart-modal').classList.remove('active');
+}
+
+function fillReceiver(addr){
+    document.getElementById('tx-receiver').value=addr;
+    showMessage("📥 接收方已设置为选中节点","success");
+}
+
+// ── API ──
+async function loadNodeWallet(){
+    const res=await fetch('/node/wallet');
+    document.getElementById('node-pub').innerText=(await res.json()).public_key;
+}
+
+async function loadPeers(){
+    try{
+        const res=await fetch('/peers'); const data=await res.json();
+        const c=document.getElementById('peer-list');
+        if(!data.peers||data.peers.length===0){ c.innerHTML='<span style="color:var(--text-muted);">暂无已发现节点</span>'; return; }
+        c.innerHTML=data.peers.map(p=>`<span class="peer-tag" onclick="fillReceiver('${p}')" title="点击设为接收方">${p}</span>`).join('');
+    }catch(e){ document.getElementById('peer-list').innerHTML='加载失败'; }
+}
+
+async function loadChain(isPolling=false){
+    const res=await fetch(`/chain?t=${Date.now()}`); const data=await res.json();
+    if(isPolling&&currentChainLength>0&&data.chain.length>currentChainLength)
+        showMessage("🔄 同步触发！发现 "+(data.chain.length-currentChainLength)+" 个新区块");
+    currentChainLength=data.chain.length;
+    document.getElementById('st-height').innerText=data.chain.length;
+    renderBlockchain(data.chain);
+}
+
+function fetchStatsLoop(){
+    fetchStatsData().then(d => {
+        if(!d) return;
+        document.getElementById('st-pool').innerText=d.mempool||0;
+        document.getElementById('st-peers').innerText=d.nodes||0;
+        document.getElementById('st-txs').innerText=d.total_txs||0;
+        if(isChartModalOpen()) updateCharts(d);
+    }).catch(()=>{});
+}
+
+function fetchStatsData(){
+    return fetch('/stats').then(r=>r.json()).catch(()=>null);
+}
+
+function isChartModalOpen(){
+    return document.getElementById('chart-modal').classList.contains('active');
+}
+
+function updateCharts(data){
+    if(!data.balances||!data.balances.length) return;
+    const labels=data.balances.map((_,i)=>'B#'+i);
+    
+    if(balanceChart) balanceChart.destroy();
+    if(feeChart) feeChart.destroy();
+    
+    balanceChart=new Chart(document.getElementById('balanceChart'),{
+        type:'line', data:{labels,datasets:[{label:'矿工余额',data:data.balances,borderColor:'#0891b2',backgroundColor:'rgba(8,145,178,0.06)',fill:true,tension:0.3,pointRadius:1}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',font:{size:10}}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#e2e8f0'}},y:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#e2e8f0'}}}}
+    });
+
+    if(data.cum_fees&&data.cum_fees.length){
+        feeChart=new Chart(document.getElementById('feeChart'),{
+            type:'line', data:{labels,datasets:[{label:'累计手续费收益',data:data.cum_fees,borderColor:'#d97706',backgroundColor:'rgba(217,119,6,0.06)',fill:true,tension:0.3,pointRadius:1}]},
+            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',font:{size:10}}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#e2e8f0'}},y:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#e2e8f0'}}}}
+        });
+    }
+}
+
+function createWallet(){
+    const keyPair=ec.genKeyPair();
+    document.getElementById('new-pub').innerText=keyPair.getPublic(false,'hex').slice(2);
+    document.getElementById('new-priv').innerText=keyPair.getPrivate('hex');
+    document.getElementById('wallet-info').style.display='block';
+    showMessage("✅ 去中心化钱包已在本地生成","success");
+}
+
+async function newTransaction(){
+    const sender=document.getElementById('tx-sender').value.trim();
+    const receiver=document.getElementById('tx-receiver').value.trim();
+    const amount=parseFloat(document.getElementById('tx-amount').value);
+    const fee=parseFloat(document.getElementById('tx-fee').value||0);
+    const privateKey=document.getElementById('tx-private-key').value.trim();
+    if(!sender||!receiver||!amount||!privateKey) return showMessage("❌ 请填写完整信息并输入私钥","error");
+
+    const pyAmount=amount.toFixed(8), pyFee=fee.toFixed(8), nonce="N-"+Date.now();
+    let signature;
+    try{
+        const key=ec.keyFromPrivate(privateKey);
+        const msg=`${sender}->${receiver}:${pyAmount} fee:${pyFee} nonce:${nonce}`;
+        const sig=key.sign(CryptoJS.SHA256(msg).toString(CryptoJS.enc.Hex));
+        signature=sig.r.toString(16,64)+sig.s.toString(16,64);
+    }catch(e){ return showMessage("❌ 本地签名失败","error"); }
+
+    const res=await fetch('/transactions/new',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sender,receiver,amount,fee,nonce,signature})});
+    const result=await res.json();
+    showMessage(result.message,res.ok?"success":"error");
+    if(res.ok){ document.getElementById('tx-amount').value=''; document.getElementById('tx-private-key').value=''; if(!isExploreMode) loadChain(); closeTransferModal(); }
+}
+
+async function exploreBlockchain(){
+    const q=document.getElementById('explore-query').value.trim(); if(!q) return;
+    const res=await fetch(`/explore/${encodeURIComponent(q)}`);
+    if(!res.ok) return showMessage("❌ 链上未找到该记录","error");
+    isExploreMode=true;
+    document.getElementById('btn-back').style.display='inline-block'; document.getElementById('btn-refresh').style.display='none';
+    document.getElementById('main-title-text').innerHTML='🔍 区块链搜索引擎 · 专属溯源报表';
+    renderExploreResults(await res.json(),q);
+}
+
+function exitExploreMode(){
+    isExploreMode=false;
+    document.getElementById('btn-back').style.display='none'; document.getElementById('btn-refresh').style.display='inline-block';
+    document.getElementById('main-title-text').innerHTML='⛓️ 实时区块链账本';
+    document.getElementById('explore-query').value=''; loadChain();
+}
+
+function renderExploreResults(data,query){
+    const c=document.getElementById('blockchain-container'); c.innerHTML='';
+    const eq=esc(query);
+    if(data.type==='address'){
+        let html=`<div class="explore-card"><h3>💳 钱包地址资产报告</h3><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;word-break:break-all;margin-bottom:12px;">${eq}</div><div class="balance-hero">${data.balance} <span style="font-size:15px;color:var(--text-muted);">币</span></div><div style="margin-top:24px;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">流水 · ${data.history.length} 笔</div>`;
+        data.history.forEach(item=>{
+            let isOut=item.tx.sender===query, isCoinbase=item.tx.sender==="0";
+            let eTxid=item.tx.txid?item.tx.txid.replace(/['"]/g,'\\$&'):'';
+            html+=`<div class="tx-row"><span class="tx-tag ${isCoinbase?'coin':'send'}">${isCoinbase?'铸币收入':(isOut?'支出':'收入')}</span><span class="tx-amt ${isOut&&!isCoinbase?'out':'in'}">${isCoinbase||!isOut?'+':'-'}${item.tx.amount} 币</span>${item.tx.fee>0?`<span class="tx-fee">Fee ${item.tx.fee}</span>`:''}${eTxid?`<span class="tx-txid" onclick="document.getElementById('explore-query').value='${eTxid}';exploreBlockchain();">TxID: ${eTxid}</span>`:''}</div>`;
+        });
+        c.innerHTML=html+'</div>';
+    }else if(data.type==='block'){
+        renderBlockchain([data.data]);
+        let el=c.querySelector('.block'); if(el){el.style.border='2px solid var(--blue)';el.style.boxShadow='0 4px 32px rgba(37,99,235,0.12)';}
+    }else if(data.type==='transaction'){
+        let eSender=esc(data.data.sender||''), eReceiver=esc(data.data.receiver||''), eTxid=esc(data.data.txid||'N/A');
+        c.innerHTML=`<div class="explore-card" style="border-color:var(--purple);box-shadow:0 4px 32px rgba(124,58,237,0.1);"><h3 style="color:var(--purple);">🧾 单笔交易溯源</h3><div class="tx-detail-row"><b>所在区块</b><span>#${data.block_index}</span></div><div class="tx-detail-row"><b>TxID</b><span>${eTxid}</span></div><div class="tx-detail-row"><b>发送方</b><span>${eSender}</span></div><div class="tx-detail-row"><b>接收方</b><span>${eReceiver}</span></div><div class="tx-detail-row"><b>金额</b><span style="color:var(--accent);font-size:18px;">${data.data.amount} 币</span></div><div class="tx-detail-row"><b>手续费</b><span>${data.data.fee} 币</span></div></div>`;
+    }
+}
+
+async function mineBlock(btn){
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 正在计算 SHA-256 碰撞...';
+    showMessage("⏳ 寻找正确 Nonce 中...","warning");
+    try{
+        const res=await fetch('/mine'); const result=await res.json();
+        showMessage(result.message,res.ok?"success":"error");
+        if(!isExploreMode) loadChain();
+    }catch(e){ showMessage("❌ 挖矿请求失败","error"); }
+    finally { btn.disabled=false; btn.innerText="⛏️ 开始挖矿打包"; }
+}
+
+function renderBlockchain(chain){
+    const container=document.getElementById('blockchain-container'); container.innerHTML='';
+    const esc=str=>String(str).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c));
+    chain.forEach((block,idx)=>{
+        let txHtml='';
+        if(!block.transactions||block.transactions.length===0){ txHtml='<div class="empty-tx">🪐 创世区块 · 无交易记录</div>'; }
+        else{
+            let txRows='';
+            block.transactions.forEach(tx=>{
+                let eS=esc(tx.sender||''), eR=esc(tx.receiver||''), eTx=esc(tx.txid||'');
+                if(tx.sender==="0"){ txRows+=`<div class="tx-row"><span class="tx-tag coin">铸币奖励</span><span class="tx-addr" onclick="trace('${eR}')">${(tx.receiver||'').substring(0,12)}...</span><span class="tx-amt in">+${tx.amount} 币</span>${eTx?`<span class="tx-txid" onclick="trace('${eTx}')">TxID: ${eTx}</span>`:''}</div>`; }
+                else{ txRows+=`<div class="tx-row"><span class="tx-tag send">转账</span><span class="tx-addr" onclick="trace('${eS}')">${(tx.sender||'').substring(0,8)}...</span><span class="tx-arr">→</span><span class="tx-addr" onclick="trace('${eR}')">${(tx.receiver||'').substring(0,8)}...</span><span class="tx-amt out">${tx.amount} 币</span>${tx.fee>0?`<span class="tx-fee">Fee ${tx.fee}</span>`:''}${eTx?`<span class="tx-txid" onclick="trace('${eTx}')">TxID: ${eTx}</span>`:''}</div>`; }
+            });
+            let cid='txb-'+idx;
+            txHtml=`<div class="tx-section"><div class="tx-section-hdr" onclick="toggleTxBody('${cid}',this)"><h4>📦 区块体 · ${block.transactions.length} 笔交易</h4><span class="arr">▼</span></div><div class="tx-list" id="${cid}">${txRows}</div></div>`;
+        }
+        let eHash=esc(block.hash||'');
+        let ts=block.timestamp===0?"创世时间":new Date(block.timestamp*1000).toLocaleString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit',year:'numeric',month:'2-digit',day:'2-digit'});
+        container.innerHTML+=`<div class="block" id="block-${block.index}"><div class="block-top"><span class="block-index">🟢 区块 #${block.index}</span><span class="block-time">${ts}</span></div><div class="block-body"><div class="hash-row"><span class="hash-label">当前哈希</span><span class="hash-click" onclick="trace('${eHash}')">${block.hash}</span></div><div class="hash-row"><span class="hash-label">前置哈希</span><span class="hash-value">${block.prev_hash||'—'}</span></div><div class="hash-row"><span class="hash-label">Merkle 根</span><span class="hash-value">${block.merkle_root||"—"}</span></div><div class="hash-row"><span class="hash-label">Nonce</span><span class="hash-value">${block.nonce}</span></div>${txHtml}</div></div>`;
+    });
+    renderTimeline(chain);
+    updateTimelineActive();
+}
+
+function toggleTxBody(id,header){
+    const body=document.getElementById(id); if(!body) return;
+    if(body.classList.contains('hidden')){ body.classList.remove('hidden'); header.classList.remove('collapsed'); }
+    else{ body.classList.add('hidden'); header.classList.add('collapsed'); }
+}
+
+// ── Timeline ──
+let _timelineChain=[];
+
+function renderTimeline(chain){
+    _timelineChain=chain;
+    const dots=document.getElementById('timeline-dots');
+    if(!dots) return;
+    const total=chain.length;
+    const maxDots=22;
+    let step=1, start=0, end=total;
+    if(total>maxDots){
+        step=Math.ceil(total/maxDots);
+        const midBlock=_visibleCenterBlock();
+        const half=maxDots>>1;
+        start=Math.max(0, midBlock-half);
+        end=Math.min(total, start+maxDots);
+        if(end-start<maxDots){ start=Math.max(0, end-maxDots); }
+    }
+    let html='';
+    for(let i=start; i<end; i+=step){
+        const bi=chain[i].index;
+        html+=`<div class="timeline-dot" data-block="${bi}" onclick="scrollToBlock(${bi})" title="区块 #${bi}"><span class="timeline-label">#${bi}</span></div>`;
+    }
+    dots.innerHTML=html;
+    const t=document.getElementById('block-timeline');
+    if(total<=1) t.style.display='none'; else t.style.display='flex';
+}
+
+function _visibleCenterBlock(){
+    const blocks=document.querySelectorAll('.block');
+    let best=1, bestDist=Infinity;
+    const vh=window.innerHeight;
+    const mid=vh/2;
+    blocks.forEach(b=>{
+        const rect=b.getBoundingClientRect();
+        const center=rect.top+rect.height/2;
+        const dist=Math.abs(center-mid);
+        if(dist<bestDist){ bestDist=dist; best=parseInt(b.id.replace('block-',''))||1; }
+    });
+    return best-1;
+}
+
+function updateTimelineActive(){
+    const center=_visibleCenterBlock();
+    document.querySelectorAll('.timeline-dot').forEach(d=>{
+        d.classList.toggle('active', parseInt(d.dataset.block)===center+1);
+    });
+}
+
+function scrollToBlock(index){
+    const el=document.getElementById('block-'+index);
+    if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); updateTimelineActive(); }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+    const chainArea=document.getElementById('blockchain-container');
+    if(chainArea){
+        chainArea.addEventListener('scroll', ()=>{
+            renderTimeline(_timelineChain);
+            updateTimelineActive();
+        });
+    }
+});
+
+function trace(val){ document.getElementById('explore-query').value=val; exploreBlockchain(); }
+</script>
+</body>
+</html>
