@@ -72,7 +72,7 @@
 ## 系统架构
 
 ```text
-final_block_chain
+LXC-Coin
  ├── blockchain/        # 核心引擎 (状态机、缓存、共识、验签)
  │    ├── chain.py          Blockchain 类
  │    └── __init__.py
@@ -88,7 +88,7 @@ final_block_chain
  │    ├── storage.py        JsonFile / Sqlite 双后端
  │    └── __init__.py
  ├── templates/
- │    └── index.html        DApp 控制台 (浅色主题)
+ │    └── index.html        LXC-Coin 控制台
  ├── .github/workflows/     CI 流水线
  │    └── ci.yml
  ├── config.py              配置中心 (难度 / 端口 / 缓存 TTL)
