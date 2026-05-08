@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.git/
+venv/
+.venv/
+chain_*.json
+wallet_*.json
+blockchain_*.db
+data/
+*.db
