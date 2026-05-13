@@ -340,7 +340,7 @@ class Blockchain:
             tx_list = pending_txs if pending_txs else self.current_transactions
             block_data = {
                 'index': len(self.chain) + 1,
-                'timestamp': time.time() if self.chain else 0,
+                'timestamp': float(time.time()) if self.chain else 0.0,
                 'transactions': tx_list,
                 'nonce': nonce,
                 'prev_hash': (
