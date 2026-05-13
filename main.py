@@ -1,4 +1,4 @@
-"""分布式区块链节点 — 启动入口。
+"""分布式区块链节点 -- 启动入口。
 
 用法::
 
@@ -9,8 +9,10 @@
     BLOCKCHAIN_PORT: 默认端口（默认 5000）
 """
 
+import os
 import threading
 import logging
+from logging.handlers import RotatingFileHandler
 from typing import Tuple
 
 from flask import Flask
@@ -20,11 +22,30 @@ from api import register_routes, create_rate_limiter
 from network import auto_discover_network, auto_sync_worker
 import config
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S',
-)
+AUDIT_LOG_FORMAT = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+
+
+def _setup_logging(port: int) -> None:
+    """配置双通道日志：控制台（实时） + 滚动文件（审计留存）。"""
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S'))
+    root.addHandler(console)
+
+    audit_file = os.path.join(config.DATA_DIR, f"audit_{port}.log")
+    file_handler = RotatingFileHandler(
+        audit_file, maxBytes=2 * 1024 * 1024, backupCount=7,
+        encoding='utf-8',
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter(AUDIT_LOG_FORMAT, datefmt='%Y-%m-%d %H:%M:%S'))
+    root.addHandler(file_handler)
+    root.info("审计日志已启用，路径: %s", audit_file)
 logger = logging.getLogger(__name__)
 
 
@@ -60,6 +81,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     app, blockchain = create_app()
+    _setup_logging(args.port)
     blockchain.init_storage(args.port)
 
     logger.info("=" * 56)

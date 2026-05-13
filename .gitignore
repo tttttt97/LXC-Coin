@@ -10,3 +10,4 @@ wallet_*.json
 blockchain_*.db
 data/
 *.db
+audit_*.log

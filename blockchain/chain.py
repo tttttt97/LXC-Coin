@@ -281,7 +281,7 @@ class Blockchain:
 
         for node in list(self.nodes):
             if not self._is_safe_node(node):
-                logger.warning("拒绝向非安全节点发起请求: %s", node)
+                logger.warning("AUDIT: SSRF 阻断 | 目标=%s", node)
                 continue
             try:
                 r = requests.get(f'http://{node}/chain', timeout=config.SYNC_TIMEOUT)

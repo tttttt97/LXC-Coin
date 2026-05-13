@@ -5,11 +5,14 @@ Docker/反向代理环境下优先读取 X-Forwarded-For 头以正确识别客�
 """
 
 import time
+import logging
 from collections import defaultdict
 from typing import Optional
 from flask import request, Flask
 
 import config
+
+logger = logging.getLogger("audit")
 
 
 def _real_client_ip() -> str:
@@ -37,6 +40,10 @@ def create_rate_limiter(window: int = 60, max_req: int = 120):
         if token:
             auth = request.headers.get("Authorization", "")
             if auth != f"Bearer {token}" and request.path != "/health":
+                logger.warning(
+                    "AUDIT: 鉴权失败 | IP=%s Path=%s",
+                    _real_client_ip(), request.path,
+                )
                 from flask import jsonify
                 return jsonify({"message": "未授权访问"}), 401
 
@@ -45,6 +52,10 @@ def create_rate_limiter(window: int = 60, max_req: int = 120):
         bucket = buckets[client]
         bucket[:] = [t for t in bucket if now - t < window]
         if len(bucket) >= max_req:
+            logger.warning(
+                "AUDIT: 频率限制触发 | IP=%s Requests=%d/%d Window=%ds",
+                client, len(bucket), max_req, window,
+            )
             from flask import jsonify
             return jsonify({"message": "请求过于频繁，请稍后重试"}), 429
         bucket.append(now)
