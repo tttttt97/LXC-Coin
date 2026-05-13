@@ -87,7 +87,8 @@ class Blockchain:
 
     def _save_block_incremental(self, block: Dict[str, Any]) -> None:
         """增量写入单个区块（挖矿产块时使用）。"""
-        self.storage.save_block(block)
+        if self.storage:
+            self.storage.save_block(block)
 
     def load_chain(self) -> None:
         """通过存储后端加载链数据，重建余额缓存和 nonce_map。"""
