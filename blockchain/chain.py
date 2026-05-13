@@ -161,6 +161,12 @@ class Blockchain:
         self.seed_nodes.append(node)
         self.nodes.add(node)
 
+    @staticmethod
+    def format_message(sender: str, receiver: str, amount: Union[int, float, str],
+                       fee: Union[int, float, str], nonce: str) -> str:
+        return (f"{sender}->{receiver}:{Decimal(str(amount)):.8f}"
+                f" fee:{Decimal(str(fee)):.8f} nonce:{nonce}")
+
     # ── 链验证 ──────────────────────────────────
 
     def valid_chain(self, chain: List[Dict[str, Any]]) -> bool:
@@ -230,9 +236,8 @@ class Blockchain:
                 else:
                     try:
                         vk = self._parse_vk(sn)
-                        message = (
-                            f"{sn}->{rc}:{tx['amount']:.8f}"
-                            f" fee:{tx['fee']:.8f} nonce:{tx['nonce']}"
+                        message = self.format_message(
+                            sn, rc, tx['amount'], tx.get('fee', 0), tx['nonce'],
                         )
                         msg_hash = hashlib.sha256(message.encode('utf-8')).digest()
                         if not vk.verify_digest(bytes.fromhex(tx['signature']), msg_hash):
@@ -432,7 +437,7 @@ class Blockchain:
                 return False, '交易参数错误'
             try:
                 vk = self._parse_vk(sender)
-                message = f"{sender}->{receiver}:{amount:.8f} fee:{fee:.8f} nonce:{nonce}"
+                message = self.format_message(sender, receiver, amount, fee, nonce)
                 msg_hash = hashlib.sha256(message.encode('utf-8')).digest()
                 if not vk.verify_digest(bytes.fromhex(signature), msg_hash):
                     return False, '签名错误'

@@ -2,7 +2,7 @@
 
 运行方式::
 
-    cd final_block_chain
+    cd LXC-Coin
     pytest test_blockchain.py -v
 
 所有涉及磁盘 I/O 的测试均使用 ``tmp_path`` 夹具,
@@ -30,6 +30,12 @@ def _make_blockchain(tmp_path, port: int) -> Blockchain:
     b = Blockchain()
     b.init_storage(port)
     return b
+
+
+def _sign(b: Blockchain, receiver: str, amount: int, fee: int, nonce: str):
+    msg = Blockchain.format_message(b.node_public_key, receiver, amount, fee, nonce)
+    sk = SigningKey.from_string(bytes.fromhex(b.node_private_key), curve=SECP256k1)
+    return msg, sk.sign(msg.encode('utf-8')).hex()
 
 
 # ═══════════════════════════════════════════════
@@ -164,15 +170,10 @@ def test_valid_transaction(tmp_path):
     sk = SigningKey.generate(curve=SECP256k1)
     receiver = sk.verifying_key.to_string().hex()
     nonce = "N-1000"
-    message = f"{b.node_public_key}->{receiver}:10.00000000 fee:1.00000000 nonce:{nonce}"
 
-    node_sk = SigningKey.from_string(bytes.fromhex(b.node_private_key), curve=SECP256k1)
-    signature = node_sk.sign(message.encode('utf-8')).hex()
-
-    success, res = b.new_transaction(
-        b.node_public_key, receiver, 10, 1, nonce, signature,
-    )
-    assert success is True
+    _, signature = _sign(b, receiver, 10, 1, nonce)
+    success, res = b.new_transaction(b.node_public_key, receiver, 10, 1, nonce, signature)
+    assert success is True, f"new_transaction 返回 False: {res}"
     assert isinstance(res, int)
 
 
@@ -184,13 +185,9 @@ def test_insufficient_balance(tmp_path):
     sk = SigningKey.generate(curve=SECP256k1)
     receiver = sk.verifying_key.to_string().hex()
     nonce = "N-1001"
-    message = f"{b.node_public_key}->{receiver}:1000.00000000 fee:1.00000000 nonce:{nonce}"
-    node_sk = SigningKey.from_string(bytes.fromhex(b.node_private_key), curve=SECP256k1)
-    signature = node_sk.sign(message.encode('utf-8')).hex()
 
-    success, msg = b.new_transaction(
-        b.node_public_key, receiver, 1000, 1, nonce, signature,
-    )
+    _, signature = _sign(b, receiver, 1000, 1, nonce)
+    success, msg = b.new_transaction(b.node_public_key, receiver, 1000, 1, nonce, signature)
     assert success is False
     assert '余额' in msg or '签名' in msg
 
@@ -203,13 +200,11 @@ def test_mempool_dedup(tmp_path):
     sk = SigningKey.generate(curve=SECP256k1)
     receiver = sk.verifying_key.to_string().hex()
     nonce = "N-2000"
-    message = f"{b.node_public_key}->{receiver}:5.00000000 fee:0.00000000 nonce:{nonce}"
-    node_sk = SigningKey.from_string(bytes.fromhex(b.node_private_key), curve=SECP256k1)
-    sig = node_sk.sign(message.encode('utf-8')).hex()
 
-    ok1, _ = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce, sig)
+    _, sig = _sign(b, receiver, 5, 0, nonce)
+    ok1, res1 = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce, sig)
     ok2, msg = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce, sig)
-    assert ok1 is True
+    assert ok1 is True, f"第一次交易应为成功，但返回: {res1}"
     assert ok2 is False
     assert '已存在' in msg
 
@@ -219,30 +214,21 @@ def test_replay_protection(tmp_path):
     n1 = b.proof_of_work("0")
     b.new_block(prev_hash="0", nonce=n1)
 
-    sk = SigningKey.generate(curve=SECP256k1)
-    receiver = sk.verifying_key.to_string().hex()
+    sk_r = SigningKey.generate(curve=SECP256k1)
+    receiver = sk_r.verifying_key.to_string().hex()
     nonce1 = "N-3000"
     nonce2 = "N-3001"
-    message = f"{b.node_public_key}->{receiver}:5.00000000 fee:0.00000000 nonce:{nonce1}"
-    node_sk = SigningKey.from_string(bytes.fromhex(b.node_private_key), curve=SECP256k1)
 
-    ok1, _ = b.new_transaction(
-        b.node_public_key, receiver, 5, 0, nonce1,
-        node_sk.sign(message.encode('utf-8')).hex(),
-    )
+    _, sig1 = _sign(b, receiver, 5, 0, nonce1)
+    _, sig2 = _sign(b, receiver, 5, 0, nonce2)
+
+    ok1, _ = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce1, sig1)
     assert ok1 is True
 
-    message2 = f"{b.node_public_key}->{receiver}:5.00000000 fee:0.00000000 nonce:{nonce2}"
-    ok2, _ = b.new_transaction(
-        b.node_public_key, receiver, 5, 0, nonce2,
-        node_sk.sign(message2.encode('utf-8')).hex(),
-    )
+    ok2, _ = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce2, sig2)
     assert ok2 is True
 
-    ok3, msg3 = b.new_transaction(
-        b.node_public_key, receiver, 5, 0, nonce1,
-        node_sk.sign(message.encode('utf-8')).hex(),
-    )
+    ok3, msg3 = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce1, sig1)
     assert ok3 is False
     assert '重复' in msg3
 
