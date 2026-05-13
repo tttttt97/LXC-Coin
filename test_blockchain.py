@@ -9,6 +9,7 @@
 测试结束后自动清理，不留垃圾文件。
 """
 
+import hashlib
 import json
 import os
 import pytest
@@ -35,7 +36,8 @@ def _make_blockchain(tmp_path, port: int) -> Blockchain:
 def _sign(b: Blockchain, receiver: str, amount: int, fee: int, nonce: str):
     msg = Blockchain.format_message(b.node_public_key, receiver, amount, fee, nonce)
     sk = SigningKey.from_string(bytes.fromhex(b.node_private_key), curve=SECP256k1)
-    return msg, sk.sign(msg.encode('utf-8')).hex()
+    digest = hashlib.sha256(msg.encode('utf-8')).digest()
+    return msg, sk.sign_digest(digest).hex()
 
 
 # ═══════════════════════════════════════════════
