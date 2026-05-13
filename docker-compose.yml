@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   lxc-node-0:
     build: .
