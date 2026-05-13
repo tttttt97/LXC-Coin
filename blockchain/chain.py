@@ -336,9 +336,32 @@ class Blockchain:
     def new_block(
         self, prev_hash: str, nonce: int, pending_txs: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        """组装并上链一个新区块，增量更新余额缓存。"""
+        """组装并上链一个新区块，增量更新余额缓存。
+
+        当交易列表为空或缺少 coinbase 交易时自动注入矿工奖励。
+        """
         with self.lock:
-            tx_list = pending_txs if pending_txs else self.current_transactions
+            tx_list = list(pending_txs) if pending_txs else list(self.current_transactions)
+            has_coinbase = any(tx.get('sender') == '0' for tx in tx_list)
+            if not has_coinbase and self.node_public_key:
+                miner_reward = float(config.MINING_REWARD)
+                block_fees = sum(
+                    float(tx.get('fee', 0)) for tx in tx_list if tx.get('sender') != '0'
+                )
+                coinbase_tx = {
+                    'sender': '0',
+                    'receiver': self.node_public_key,
+                    'amount': miner_reward,
+                    'fee': 0,
+                    'nonce': 'N-0',
+                    'signature': '',
+                }
+                coinbase_tx['txid'] = get_hash(coinbase_tx)
+                if block_fees > 0:
+                    coinbase_tx['amount'] = float(
+                        Decimal(str(miner_reward)) + Decimal(str(block_fees))
+                    )
+                tx_list = [coinbase_tx] + tx_list
             block_data = {
                 'index': len(self.chain) + 1,
                 'timestamp': float(time.time()) if self.chain else 0.0,

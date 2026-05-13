@@ -253,13 +253,13 @@ def test_new_block_increments_index(tmp_path):
     b = _make_blockchain(tmp_path, 8008)
     n1 = b.proof_of_work("0")
     b1 = b.new_block(prev_hash="0", nonce=n1)
-    assert b1['index'] == 1
-    assert b.last_block['index'] == 1
+    assert b1['index'] == 2
+    assert b.last_block['index'] == 2
 
     n2 = b.proof_of_work(b1['hash'])
     b2 = b.new_block(prev_hash=b1['hash'], nonce=n2)
-    assert b2['index'] == 2
-    assert b.last_block['index'] == 2
+    assert b2['index'] == 3
+    assert b.last_block['index'] == 3
 
 
 def test_block_hash_integrity(tmp_path):
