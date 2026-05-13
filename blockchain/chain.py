@@ -76,10 +76,21 @@ class Blockchain:
         else:
             sk = SigningKey.generate(curve=SECP256k1)
             self.node_private_key = sk.to_string().hex()
-            self.node_public_key = sk.verifying_key.to_string().hex()
+            raw_vk = sk.verifying_key.to_string()
+            if len(raw_vk) == 64:
+                raw_vk = b'\x04' + raw_vk
+            self.node_public_key = raw_vk.hex()
             self.storage.save_wallet(self.node_public_key, self.node_private_key)
 
         self.load_chain()
+
+    @staticmethod
+    def _parse_vk(vk_hex: str) -> VerifyingKey:
+        """跨平台 VerifyingKey 解析，兼容 64/65 字节编码。"""
+        raw = bytes.fromhex(vk_hex)
+        if len(raw) == 64:
+            raw = b'\x04' + raw
+        return VerifyingKey.from_string(raw, curve=SECP256k1)
 
     def save_chain(self) -> None:
         """全量覆盖持久化（仅 sync 时使用）。"""
@@ -218,7 +229,7 @@ class Blockchain:
                         return False
                 else:
                     try:
-                        vk = VerifyingKey.from_string(bytes.fromhex(sn), curve=SECP256k1)
+                        vk = self._parse_vk(sn)
                         message = (
                             f"{sn}->{rc}:{tx['amount']:.8f}"
                             f" fee:{tx['fee']:.8f} nonce:{tx['nonce']}"
@@ -420,7 +431,7 @@ class Blockchain:
             if amount <= 0 or fee < 0:
                 return False, '交易参数错误'
             try:
-                vk = VerifyingKey.from_string(bytes.fromhex(sender), curve=SECP256k1)
+                vk = self._parse_vk(sender)
                 message = f"{sender}->{receiver}:{amount:.8f} fee:{fee:.8f} nonce:{nonce}"
                 msg_hash = hashlib.sha256(message.encode('utf-8')).digest()
                 if not vk.verify_digest(bytes.fromhex(signature), msg_hash):
