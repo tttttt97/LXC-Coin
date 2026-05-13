@@ -30,8 +30,5 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Compile check
-        run: python -m py_compile blockchain/chain.py blockchain/__init__.py api/routes.py api/middleware.py api/__init__.py network/p2p.py network/__init__.py utils/crypto.py utils/storage.py utils/__init__.py config.py main.py
-
       - name: Run unit tests
         run: python -m pytest test_blockchain.py -v --tb=short

@@ -25,18 +25,11 @@ import config
 # ═══════════════════════════════════════════════
 
 def _make_blockchain(tmp_path, port: int) -> Blockchain:
-    """在临时目录中创建并初始化一个带创世区块的节点。
-
-    Args:
-        tmp_path: pytest 临时目录夹具。
-        port: 节点端口号（仅用于区分多节点测试场景）。
-
-    Returns:
-        已含创世区块的 Blockchain 实例。
-    """
+    """在临时目录中创建并初始化一个带创世区块的节点。"""
     os.environ["BLOCKCHAIN_DATA_DIR"] = str(tmp_path)
     b = Blockchain()
     b.init_storage(port)
+    os.environ.pop("BLOCKCHAIN_DATA_DIR", None)
     return b
 
 
