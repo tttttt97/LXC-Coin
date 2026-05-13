@@ -55,7 +55,7 @@ class Blockchain:
 
     def _create_storage(self, port: int) -> BaseStorage:
         """根据 config 创建对应的存储后端实例。"""
-        data_dir = config.DATA_DIR
+        data_dir = os.getenv("BLOCKCHAIN_DATA_DIR") or config.DATA_DIR
         os.makedirs(data_dir, exist_ok=True)
         if config.STORAGE_BACKEND == "sqlite":
             db_path = os.path.join(data_dir, config.DB_FILE_TEMPLATE.format(port=port))

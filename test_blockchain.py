@@ -29,7 +29,6 @@ def _make_blockchain(tmp_path, port: int) -> Blockchain:
     os.environ["BLOCKCHAIN_DATA_DIR"] = str(tmp_path)
     b = Blockchain()
     b.init_storage(port)
-    os.environ.pop("BLOCKCHAIN_DATA_DIR", None)
     return b
 
 
