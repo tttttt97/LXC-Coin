@@ -409,7 +409,7 @@ button:disabled { background:#cbd5e1!important; color:#94a3b8!important; cursor:
 <!-- ═══════ Main Content ═══════ -->
 <div class="main-content">
     <div class="content-header" id="display-title">
-        <h2 id="main-title-text">⛓️ 实时区块链账本</h2>
+        <h2 id="main-title-text">LXC-Coin 实时区块链账本</h2>
         <button class="btn-sm" onclick="exitExploreMode()" id="btn-back" style="display:none;">← 返回大盘</button>
         <button class="btn-sm" onclick="loadChain()" id="btn-refresh">🔄 刷新</button>
     </div>
@@ -426,6 +426,7 @@ button:disabled { background:#cbd5e1!important; color:#94a3b8!important; cursor:
 <script>
 const EC=elliptic.ec; const ec=new EC('secp256k1');
 let currentChainLength=0, isExploreMode=false, balanceChart, feeChart;
+let exploreHistory=[], currentExploreData=null;
 
 window.onload=()=>{
     loadChain(); loadNodeWallet();
@@ -571,18 +572,40 @@ async function newTransaction(){
 async function exploreBlockchain(){
     const q=document.getElementById('explore-query').value.trim(); if(!q) return;
     const res=await fetch(`/explore/${encodeURIComponent(q)}`);
-    if(!res.ok) return showMessage("❌ 链上未找到该记录","error");
+    if(!res.ok){ showMessage("链上未找到该记录","error"); document.getElementById('explore-query').value=q; return; }
+    const data=await res.json();
+    exploreHistory.push({query:q, data:data});
+    currentExploreData=data;
+    enterExploreMode(q);
+    renderExploreResults(data,q);
+}
+
+function enterExploreMode(q){
     isExploreMode=true;
-    document.getElementById('btn-back').style.display='inline-block'; document.getElementById('btn-refresh').style.display='none';
-    document.getElementById('main-title-text').innerHTML='🔍 区块链搜索引擎 · 专属溯源报表';
-    renderExploreResults(await res.json(),q);
+    document.getElementById('btn-back').style.display='inline-block';
+    document.getElementById('btn-refresh').style.display='none';
+    document.getElementById('main-title-text').innerHTML='LXC-Coin 搜索引擎 · 专属溯源报表';
+    document.getElementById('block-timeline').style.display='none';
 }
 
 function exitExploreMode(){
+    if(exploreHistory.length>1){
+        exploreHistory.pop();
+        const prev=exploreHistory[exploreHistory.length-1];
+        currentExploreData=prev.data;
+        document.getElementById('explore-query').value=prev.query;
+        renderExploreResults(prev.data,prev.query);
+        return;
+    }
     isExploreMode=false;
-    document.getElementById('btn-back').style.display='none'; document.getElementById('btn-refresh').style.display='inline-block';
-    document.getElementById('main-title-text').innerHTML='⛓️ 实时区块链账本';
-    document.getElementById('explore-query').value=''; loadChain();
+    exploreHistory=[];
+    currentExploreData=null;
+    document.getElementById('btn-back').style.display='none';
+    document.getElementById('btn-refresh').style.display='inline-block';
+    document.getElementById('main-title-text').innerHTML='实时区块链账本';
+    document.getElementById('explore-query').value='';
+    document.getElementById('block-timeline').style.display='flex';
+    loadChain();
 }
 
 function renderExploreResults(data,query){
