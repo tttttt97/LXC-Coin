@@ -572,12 +572,24 @@ async function newTransaction(){
 async function exploreBlockchain(){
     const q=document.getElementById('explore-query').value.trim(); if(!q) return;
     const res=await fetch(`/explore/${encodeURIComponent(q)}`);
-    if(!res.ok){ showMessage("链上未找到该记录","error"); document.getElementById('explore-query').value=q; return; }
+    if(!res.ok){
+        if(q.length>=64){
+            enterExploreMode(q);
+            const c=document.getElementById('blockchain-container'); c.innerHTML='';
+            c.innerHTML=`<div class="explore-card"><h3>搜索结果</h3><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;word-break:break-all;margin-bottom:12px;">${esc(q)}</div><div class="balance-hero" style="font-size:32px;color:var(--text-muted);">0.0 <span style="font-size:15px;">币</span></div><div style="margin-top:16px;text-align:center;color:var(--text-muted);font-size:13px;">该地址暂无交易记录</div></div>`;
+            exploreHistory.push({query:q, data:{type:'address',balance:0,history:[]}});
+            currentExploreData={type:'address',balance:0,history:[]};
+        }else{
+            showMessage("链上未找到该记录","error");
+            document.getElementById('explore-query').value=q;
+        }
+        return;
+    }
     const data=await res.json();
     exploreHistory.push({query:q, data:data});
     currentExploreData=data;
     enterExploreMode(q);
-    renderExploreResults(data,q);
+    try{ renderExploreResults(data,q); }catch(e){ document.getElementById('blockchain-container').innerHTML='<div class="explore-card"><h3>渲染异常</h3><p>请返回大盘后重试</p></div>'; }
 }
 
 function enterExploreMode(q){
@@ -612,8 +624,10 @@ function renderExploreResults(data,query){
     const c=document.getElementById('blockchain-container'); c.innerHTML='';
     const eq=esc(query);
     if(data.type==='address'){
-        let html=`<div class="explore-card"><h3>💳 钱包地址资产报告</h3><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;word-break:break-all;margin-bottom:12px;">${eq}</div><div class="balance-hero">${data.balance} <span style="font-size:15px;color:var(--text-muted);">币</span></div><div style="margin-top:24px;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">流水 · ${data.history.length} 笔</div>`;
-        data.history.forEach(item=>{
+        let balance=data.balance||0;
+        let history=data.history||[];
+        let html=`<div class="explore-card"><h3>钱包地址资产报告</h3><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;word-break:break-all;margin-bottom:12px;">${eq}</div><div class="balance-hero">${balance} <span style="font-size:15px;color:var(--text-muted);">币</span></div><div style="margin-top:24px;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">流水 · ${history.length} 笔</div>`;
+        history.forEach(item=>{
             let isOut=item.tx.sender===query, isCoinbase=item.tx.sender==="0";
             let eTxid=item.tx.txid?item.tx.txid.replace(/['"]/g,'\\$&'):'';
             html+=`<div class="tx-row"><span class="tx-tag ${isCoinbase?'coin':'send'}">${isCoinbase?'铸币收入':(isOut?'支出':'收入')}</span><span class="tx-amt ${isOut&&!isCoinbase?'out':'in'}">${isCoinbase||!isOut?'+':'-'}${item.tx.amount} 币</span>${item.tx.fee>0?`<span class="tx-fee">Fee ${item.tx.fee}</span>`:''}${eTxid?`<span class="tx-txid" onclick="document.getElementById('explore-query').value='${eTxid}';exploreBlockchain();">TxID: ${eTxid}</span>`:''}</div>`;
