@@ -208,7 +208,7 @@ def test_mempool_dedup(tmp_path):
     ok2, msg = b.new_transaction(b.node_public_key, receiver, 5, 0, nonce, sig)
     assert ok1 is True, f"第一次交易应为成功，但返回: {res1}"
     assert ok2 is False
-    assert '已存在' in msg
+    assert '重复' in msg
 
 
 def test_replay_protection(tmp_path):
