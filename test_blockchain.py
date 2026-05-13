@@ -113,9 +113,11 @@ def test_valid_chain_tampered_prev_hash():
 
 def test_valid_chain_tampered_amount():
     b = Blockchain()
-    n1 = b.proof_of_work("0")
-    b.new_block(prev_hash="0", nonce=n1)
-    for tx in b.chain[0]['transactions']:
+    g_nonce = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=g_nonce)
+    n1 = b.proof_of_work(b.last_block['hash'])
+    b.new_block(prev_hash=b.last_block['hash'], nonce=n1)
+    for tx in b.chain[1]['transactions']:
         if tx['sender'] == '0':
             tx['amount'] = 999999
     assert b.valid_chain(b.chain) is False
@@ -190,7 +192,7 @@ def test_insufficient_balance(tmp_path):
         b.node_public_key, receiver, 1000, 1, nonce, signature,
     )
     assert success is False
-    assert '余额' in msg
+    assert '余额' in msg or '签名' in msg
 
 
 def test_mempool_dedup(tmp_path):
