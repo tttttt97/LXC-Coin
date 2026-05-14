@@ -589,7 +589,7 @@ async function exploreBlockchain(){
     exploreHistory.push({query:q, data:data});
     currentExploreData=data;
     enterExploreMode(q);
-    try{ renderExploreResults(data,q); }catch(e){ document.getElementById('blockchain-container').innerHTML='<div class="explore-card"><h3>渲染异常</h3><p>请返回大盘后重试</p></div>'; }
+    renderExploreResults(data,q);
 }
 
 function enterExploreMode(q){
