@@ -428,6 +428,8 @@ const EC=elliptic.ec; const ec=new EC('secp256k1');
 let currentChainLength=0, isExploreMode=false, balanceChart, feeChart;
 let exploreHistory=[], currentExploreData=null;
 
+const esc=str=>String(str).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c));
+
 window.onload=()=>{
     loadChain(); loadNodeWallet();
     setInterval(()=>{ if(!isExploreMode) loadChain(true); },3000);
@@ -655,7 +657,6 @@ async function mineBlock(btn){
 
 function renderBlockchain(chain){
     const container=document.getElementById('blockchain-container'); container.innerHTML='';
-    const esc=str=>String(str).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c));
     chain.forEach((block,idx)=>{
         let txHtml='';
         if(!block.transactions||block.transactions.length===0){ txHtml='<div class="empty-tx">🪐 创世区块 · 无交易记录</div>'; }
