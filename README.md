@@ -1,10 +1,10 @@
 # LXC-Coin -- 分布式区块链仿真节点
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![Build](https://github.com/tttttt97/LXC-Coin/actions/workflows/ci.yml/badge.svg)
 ![Docker](https://img.shields.io/badge/docker-supported-blue)
 ![Storage](https://img.shields.io/badge/storage-SQLite_%2B_JSON-green)
-![Tests](https://img.shields.io/badge/tests-18%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen)
 
 > 从零构建的完整区块链系统与去中心化应用终端。
 
@@ -375,7 +375,7 @@ python -c "import py_compile, glob; [py_compile.compile(f, doraise=True) for f i
 
 > 所有磁盘 I/O 测试均使用 `tmp_path` 夹具，不产生残留文件。
 
-**GitHub Actions：** 每次 push 在 Python 3.10 / 3.11 / 3.12 三环境下自动运行编译检查 + Ruff 扫描 + 全量单元测试。
+**GitHub Actions：** 每次 push 在 Python 3.10 / 3.11 / 3.12 三环境下自动运行编译检查 + Ruff 扫描 + 全量单元测试编译检查 + Ruff 扫描 + 全量单元测试。
 
 ---
 

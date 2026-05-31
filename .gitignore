@@ -11,3 +11,8 @@ blockchain_*.db
 data/
 *.db
 audit_*.log
+.vscode/
+.idea/
+*.db-journal
+*.db-wal
+.pytest_cache/

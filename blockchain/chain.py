@@ -8,9 +8,11 @@ from decimal import Decimal, getcontext
 from typing import Optional, Tuple, Union, List, Dict, Any
 from urllib.parse import urlparse
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ecdsa import SigningKey, VerifyingKey, SECP256k1
 from ecdsa.keys import BadSignatureError
 
+from network.p2p import _is_safe_node as _p2p_is_safe
 from utils import get_hash, get_merkle_root
 from utils.storage import BaseStorage, JsonFileStorage, SqliteStorage
 import config
@@ -277,14 +279,7 @@ class Blockchain:
         """计算累计工作量（难度固定时等价于链长 × 难度权重）。"""
         return len(chain) * 2 ** len(config.DIFFICULTY)
 
-    @staticmethod
-    def _is_safe_node(address: str) -> bool:
-        """校验节点地址是否合法，防止 SSRF 攻击。
-        
-        仅允许 localhost / 127.0.0.1 及 config.HOST 的请求。
-        """
-        host = address.split(':')[0] if ':' in address else address
-        return host in ('127.0.0.1', 'localhost', config.HOST)
+
 
     def resolve_conflicts(self) -> bool:
         """累计工作量共识：用已验证的更高累计工作量链替换本地链。
@@ -296,33 +291,54 @@ class Blockchain:
         new_chain = None
         best_difficulty = local_difficulty
 
-        for node in list(self.nodes):
-            if not self._is_safe_node(node):
-                logger.warning("AUDIT: SSRF 阻断 | 目标=%s", node)
-                continue
+        unsafe_count = 0
+        safe_nodes = []
+        for n in self.nodes:
+            if _p2p_is_safe(n):
+                safe_nodes.append(n)
+            else:
+                unsafe_count += 1
+                if unsafe_count <= 3:
+                    logger.warning('AUDIT: SSRF 阻断 | 目标=%s', n)
+        if unsafe_count > 3:
+            logger.warning('AUDIT: SSRF 阻断 | 共 %d 个不安全节点被跳过', unsafe_count)
+        if not safe_nodes:
+            return False
+
+        def _fetch_chain(node: str):
+            """向单个节点请求链数据，返回 (node, chain, difficulty) 或 None。"""
             try:
                 r = requests.get(f'http://{node}/chain', timeout=config.SYNC_TIMEOUT)
                 if r.status_code == 200:
                     chain_data = r.json()
                     chain = chain_data['chain']
-                    remote_difficulty = self._chain_total_difficulty(chain)
-                    if remote_difficulty > best_difficulty:
-                        if self.valid_chain(chain):
-                            best_difficulty = remote_difficulty
-                            new_chain = chain
-                            logger.info(
-                                "发现更优链：本地 %d 块 (diff %.0f) → 远程 %d 块 (diff %.0f)",
-                                len(self.chain), local_difficulty, len(chain), remote_difficulty,
-                            )
-                        else:
-                            logger.warning(
-                                "远程链验证失败：长度 %d 但 valid_chain 返回 False",
-                                len(chain),
-                            )
+                    return (node, chain, self._chain_total_difficulty(chain))
             except (requests.ConnectionError, requests.Timeout) as e:
                 logger.debug("节点 %s 不可达: %s", node, e)
             except requests.RequestException as e:
                 logger.debug("请求节点 %s 异常: %s", node, e)
+            return None
+
+        with ThreadPoolExecutor(max_workers=min(8, len(safe_nodes))) as executor:
+            futures = {executor.submit(_fetch_chain, n): n for n in safe_nodes}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is None:
+                    continue
+                node, chain, remote_difficulty = result
+                if remote_difficulty > best_difficulty:
+                    if self.valid_chain(chain):
+                        best_difficulty = remote_difficulty
+                        new_chain = chain
+                        logger.info(
+                            "发现更优链：本地 %d 块 (diff %.0f) → 远程 %d 块 (diff %.0f)",
+                            len(self.chain), local_difficulty, len(chain), remote_difficulty,
+                        )
+                    else:
+                        logger.warning(
+                            "远程链验证失败：长度 %d 但 valid_chain 返回 False",
+                            len(chain),
+                        )
 
         if new_chain:
             with self.lock:
@@ -372,7 +388,7 @@ class Blockchain:
                     'amount': miner_reward,
                     'fee': 0.0,
                     'nonce': 'N-0',
-                    'signature': '',
+                    'signature': 'system_coinbase',
                 }
                 coinbase_tx['txid'] = get_hash(coinbase_tx)
                 if block_fees > 0:

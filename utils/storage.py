@@ -55,8 +55,16 @@ class JsonFileStorage(BaseStorage):
                 json.dump({'chain': chain}, f, indent=4, ensure_ascii=False)
 
     def save_block(self, block: Dict[str, Any]) -> None:
-        """JSON 后端下增量追加 = 全量覆盖写。"""
-        pass
+        """增量追加：读取当前链 → 追加区块 → 全量写回。
+
+        虽然开销比纯追加高，但保证了 JSON 后端的行为与 SQLite 一致，
+        确保每个新区块在挖出后即时落盘，防止进程崩溃时丢失区块。
+        """
+        with self._lock:
+            chain = self.load_chain()
+            chain.append(block)
+            with open(self.chain_path, 'w', encoding='utf-8') as f:
+                json.dump({'chain': chain}, f, indent=4, ensure_ascii=False)
 
     def load_chain(self) -> List[Dict[str, Any]]:
         if not os.path.exists(self.chain_path):

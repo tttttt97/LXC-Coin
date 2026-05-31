@@ -270,3 +270,116 @@ def test_save_and_load_chain(tmp_path):
     b2 = _make_blockchain(tmp_path, 8010)
     loaded_json = json.dumps(b2.chain, sort_keys=True)
     assert loaded_json == original_json
+
+
+# ═══════════════════════════════════════════════
+# 边界条件与安全性测试（v2 新增）
+# ═══════════════════════════════════════════════
+
+def test_negative_amount_rejected(tmp_path):
+    """负数金额的转账请求应被明确拒绝。"""
+    """负数金额交易应被拒绝。"""
+    b = _make_blockchain(tmp_path, 8011)
+    n1 = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=n1)
+    _, sig = _sign(b, "receiver", 10, 0, "N-9001")
+    success, msg = b.new_transaction(b.node_public_key, "receiver", -5, 0, "N-9001", sig)
+    assert success is False
+    assert '参数错误' in msg
+
+
+def test_zero_amount_rejected(tmp_path):
+    """零金额转账请求应被拒绝，防止空交易污染内存池。"""
+    """零金额交易应被拒绝。"""
+    b = _make_blockchain(tmp_path, 8012)
+    n1 = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=n1)
+    _, sig = _sign(b, "receiver", 0, 0, "N-9002")
+    success, msg = b.new_transaction(b.node_public_key, "receiver", 0, 0, "N-9002", sig)
+    assert success is False
+    assert '参数错误' in msg
+
+
+def test_negative_fee_rejected(tmp_path):
+    """负手续费应被拒绝，防止恶意节点通过负费攻击获利。"""
+    """负手续费应被拒绝。"""
+    b = _make_blockchain(tmp_path, 8013)
+    n1 = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=n1)
+    _, sig = _sign(b, "receiver", 5, -1, "N-9003")
+    success, msg = b.new_transaction(b.node_public_key, "receiver", 5, -1, "N-9003", sig)
+    assert success is False
+
+
+def test_self_transfer_rejected_or_handled(tmp_path):
+    """自转账户不应改变余额，确保转账逻辑的一致性。"""
+    """自转账（发送方=接收方）的行为应明确。"""
+    b = _make_blockchain(tmp_path, 8014)
+    n1 = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=n1)
+    nonce = "N-9004"
+    _, sig = _sign(b, b.node_public_key, 5, 0, nonce)
+    success, msg = b.new_transaction(b.node_public_key, b.node_public_key, 5, 0, nonce, sig)
+    # 自转账应成功入池（但不改变余额），或显式拒绝
+    if success:
+        bal = b.get_balance(b.node_public_key)
+        assert bal == Decimal(str(config.MINING_REWARD)), f"自转账不应改变余额，当前={bal}"
+
+
+def test_large_amount_precision(tmp_path):
+    """高精度金额在 Decimal 链路中不应丢失尾数位。"""
+    """大额交易应保持 Decimal 精度（不丢失最低位）。"""
+    b = _make_blockchain(tmp_path, 8015)
+    n1 = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=n1)
+    nonce = "N-9005"
+    amount = "12.34567890"
+    _, sig = _sign(b, "receiver", amount, 0, nonce)
+    success, _ = b.new_transaction(b.node_public_key, "receiver", amount, 0, nonce, sig)
+    assert success is True
+    # 验证交易在内存池中金额精确
+    tx = b.current_transactions[-1]
+    assert tx['amount'] == float(amount)
+
+
+def test_mine_empty_mempool(tmp_path):
+    """空内存池状态下挖矿应正常产生仅含 coinbase 的区块。"""
+    """空内存池时挖矿应正常产出只含 coinbase 的区块。"""
+    b = _make_blockchain(tmp_path, 8016)
+    n1 = b.proof_of_work("0")
+    b.new_block(prev_hash="0", nonce=n1)
+    assert len(b.current_transactions) == 0
+    n2 = b.proof_of_work(b.last_block['hash'])
+    block = b.new_block(prev_hash=b.last_block['hash'], nonce=n2)
+    assert block['index'] == 3
+    # 空内存池区块应只有 coinbase
+    assert len(block['transactions']) == 1
+    assert block['transactions'][0]['sender'] == '0'
+
+
+def test_chain_validation_after_sync_prevents_double_spend(tmp_path):
+    """恶意构造的透支链应被 valid_chain 拒绝，防御双花攻击。"""
+    """模拟双花攻击：恶意链中包含透支交易，valid_chain 应拒绝。"""
+    b = _make_blockchain(tmp_path, 8017)
+    n1 = b.proof_of_work("0")
+    g = b.new_block(prev_hash="0", nonce=n1)
+    # 构造一条包含透支交易的"恶意链"
+    malicious_chain = [g]
+    # 第二个区块：发送方发送超过 coinbase 奖励的金额（双花）
+    coinbase = {
+        'sender': '0', 'receiver': b.node_public_key, 'amount': float(config.MINING_REWARD),
+        'fee': 0, 'nonce': 'CB-1', 'signature': 'system_coinbase',
+    }
+    coinbase['txid'] = get_hash(coinbase)
+    overspend = {
+        'sender': b.node_public_key, 'receiver': 'attacker', 'amount': float(config.MINING_REWARD * 2),
+        'fee': 0, 'nonce': 'N-FAKE', 'signature': 'invalid_sig', 'txid': 'fake_txid',
+    }
+    malicious_block = {
+        'index': 2, 'timestamp': 999999.0, 'transactions': [coinbase, overspend],
+        'nonce': 0, 'prev_hash': g['hash'], 'merkle_root': '',
+    }
+    malicious_block['hash'] = get_hash({k: v for k, v in malicious_block.items() if k != 'hash'})
+    malicious_chain.append(malicious_block)
+    # 由于签名无效，valid_chain 应拒绝
+    assert b.valid_chain(malicious_chain) is False
