@@ -2,9 +2,10 @@
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Build](https://github.com/tttttt97/LXC-Coin/actions/workflows/ci.yml/badge.svg)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![Docker](https://img.shields.io/badge/docker-supported-blue)
 ![Storage](https://img.shields.io/badge/storage-SQLite_%2B_JSON-green)
-![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-28%20passed-brightgreen)
 
 > 从零构建的完整区块链系统与去中心化应用终端。
 
@@ -65,7 +66,7 @@
 | Docker 集群 | `docker-compose up -d` 一键启动 3 节点互联网络 |
 | API 安全 | 滑动窗口限流（支持 `X-Forwarded-For`）+ Bearer Token 鉴权 |
 | 健康检查 | `GET /health` 返回节点状态与链高度 |
-| CI/CD | GitHub Actions：glob 编译 + Ruff 静态分析 + 18 个 pytest |
+| CI/CD | GitHub Actions：glob 编译 + Ruff 静态分析 + 28 个 pytest |
 | 类型标注 | 全部公开方法含返回类型标注与 docstring |
 
 ---
@@ -94,7 +95,7 @@ LXC-Coin
  │    └── ci.yml
  ├── config.py              配置中心 (难度 / 端口 / 缓存 TTL)
  ├── main.py                启动入口
- ├── test_blockchain.py     18 个 pytest 用例
+ ├── test_blockchain.py     28 个 pytest 用例
  ├── Dockerfile
  ├── docker-compose.yml
  └── requirements.txt
@@ -135,7 +136,7 @@ SQLite 模式下的关系型表设计，采用 WAL 日志模式提升并发性�
 | 持久化层 | `utils/storage.py` | `BaseStorage` 抽象基类，`JsonFileStorage` / `SqliteStorage` 双实现 |
 | 配置中心 | `config.py` | 全系统常量集中管理，支持环境变量覆盖 |
 | 启动入口 | `main.py` | 应用工厂 `create_app()`，线程启动、参数解析 |
-| 单元测试 | `test_blockchain.py` | 18 个 pytest 用例，含 PoW / Merkle / 签名 / 防重放 / 字符串化验证 |
+| 单元测试 | `test_blockchain.py` | 28 个 pytest 用例，含 PoW / Merkle / 签名 / 防重放 / 字符串化验证 |
 
 ---
 

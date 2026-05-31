@@ -387,7 +387,7 @@ class Blockchain:
                     'receiver': self.node_public_key,
                     'amount': miner_reward,
                     'fee': 0.0,
-                    'nonce': 'N-0',
+                    'nonce': f'C-{len(self.chain) + 1}',
                     'signature': 'system_coinbase',
                 }
                 coinbase_tx['txid'] = get_hash(coinbase_tx)
